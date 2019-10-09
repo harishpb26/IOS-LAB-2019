@@ -88,6 +88,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->priority = 15;
 
   release(&ptable.lock);
 
@@ -329,16 +330,27 @@ scheduler(void)
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
+	
+	struct proc* H;
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
+	  H = p;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
+	  struct proc* p1;
+	  for(p1 = ptable.proc; p1 < &ptable.proc[NPROC]; p1++){
+      	if(p1->state != RUNNABLE)
+        	continue;
+		if(p1->priority > p->priority){
+			H = p1;
+		}
+	  }
+	  p = H;
       c->proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -532,3 +544,26 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+// implementation of ps command in xv6
+int 
+cps(void){
+
+		static char *states[] = {
+		[UNUSED]    "unused",
+		[EMBRYO]    "embryo",
+		[SLEEPING]  "sleep",
+		[RUNNABLE]  "runble",
+		[RUNNING]   "run",
+		[ZOMBIE]    "zombie"
+		};
+		struct proc *p;
+	  	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+			if(p->state == UNUSED)
+			  continue;
+			cprintf("(%d, %s, %s, %d)", p->pid, p->name, states[p->state], p->priority);
+			cprintf("\n");
+	  	}
+	return 0;
+}
+
